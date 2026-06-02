@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bode Plot Explorer — BME 309</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f8f7f4;
+    --surface: #ffffff;
+    --surface2: #f1f0ec;
+    --border: rgba(0,0,0,0.10);
+    --border2: rgba(0,0,0,0.18);
+    --text: #1a1a18;
+    --text2: #5a5a56;
+    --text3: #8a8a84;
+    --pole: #D85A30;
+    --zero: #185FA5;
+    --line: #534AB7;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #181816;
+      --surface: #222220;
+      --surface2: #2a2a28;
+      --border: rgba(255,255,255,0.09);
+      --border2: rgba(255,255,255,0.20);
+      --text: #e8e8e2;
+      --text2: #a0a09a;
+      --text3: #686864;
+      --pole: #F07050;
+      --zero: #5BAFF5;
+      --line: #8880EE;
+    }
+  }
+  body {
+    font-family: 'Georgia', serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0;
+  }
+  header {
+    background: var(--surface);
+    border-bottom: 0.5px solid var(--border2);
+    padding: 16px 28px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+  header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    font-family: 'Georgia', serif;
+  }
+  header .sub {
+    font-size: 13px;
+    color: var(--text3);
+    font-family: system-ui, sans-serif;
+  }
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px 20px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  .card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+  }
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 10px;
+  }
+  .preset-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  button {
+    font-family: system-ui, sans-serif;
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: var(--radius-md);
+    border: 0.5px solid var(--border2);
+    background: var(--surface);
+    color: var(--text2);
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  button:hover { background: var(--surface2); color: var(--text); }
+  button.active {
+    background: #E6F1FB;
+    color: #185FA5;
+    border-color: #378ADD;
+  }
+  @media (prefers-color-scheme: dark) {
+    button.active { background: #0C447C; color: #B5D4F4; border-color: #378ADD; }
+  }
+  .pz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 580px) { .pz-grid { grid-template-columns: 1fr; } }
+  .pz-card {
+    background: var(--surface2);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .pz-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pz-title { font-size: 14px; font-weight: 600; }
+  .pz-count { display: flex; gap: 4px; align-items: center; margin-left: auto; }
+  .sl-row { display: flex; align-items: center; gap: 8px; }
+  .sl-label { font-size: 12px; color: var(--text2); width: 82px; flex-shrink: 0; }
+  .sl-val { font-size: 12px; font-weight: 600; width: 38px; text-align: right; flex-shrink: 0; color: var(--text); }
+  input[type=range] {
+    flex: 1;
+    accent-color: var(--line);
+    cursor: pointer;
+  }
+  .toggle-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .toggle-row .tog-label { font-size: 12px; color: var(--text3); }
+  .plots {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 640px) { .plots { grid-template-columns: 1fr; } }
+  .plot-box {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 12px;
+  }
+  .plot-title {
+    font-size: 12px;
+    color: var(--text3);
+    margin-bottom: 8px;
+    min-height: 18px;
+  }
+  canvas { display: block; width: 100%; }
+  .note-box {
+    font-size: 13px;
+    color: var(--text2);
+    background: var(--surface2);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    line-height: 1.7;
+  }
+  .note-box strong { color: var(--text); }
+  footer {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text3);
+    padding: 16px;
+    font-family: system-ui, sans-serif;
+    border-top: 0.5px solid var(--border);
+    margin-top: 8px;
+  }
+  .bode-stack { display: flex; flex-direction: column; gap: 12px; }
+  .sep { width: 1px; height: 18px; background: var(--border2); margin: 0 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bode Plot Explorer</h1>
+  <span class="sub">BME 309 — Signals &amp; Systems</span>
+</header>
+
+<main>
+  <!-- Presets -->
+  <div class="card">
+    <div class="section-label">Presets</div>
+    <div class="preset-row">
+      <button onclick="setPreset('butter1lp')">Butterworth 1st LP</button>
+      <button onclick="setPreset('butter2lp')">Butterworth 2nd LP</button>
+      <button onclick="setPreset('butter2hp')">Butterworth 2nd HP</button>
+      <button onclick="setPreset('ecgbp')">ECG Bandpass</button>
+      <button onclick="setPreset('notch60')">60 Hz Notch</button>
+      <button onclick="setPreset('reset')">Reset</button>
+    </div>
+  </div>
+
+  <!-- Pole / Zero controls -->
+  <div class="card">
+    <div class="pz-grid">
+      <!-- Poles panel -->
+      <div class="pz-card">
+        <div class="pz-header">
+          <span class="pz-title" style="color:var(--pole)">× Poles</span>
+          <div class="pz-count">
+            <span style="font-size:11px;color:var(--text3);margin-right:2px">count:</span>
+            <button id="pn0" class="tog" onclick="setPoleCount(0)">0</button>
+            <button id="pn1" class="tog active" onclick="setPoleCount(1)">1 pair</button>
+            <button id="pn2" class="tog" onclick="setPoleCount(2)">2 pairs</button>
+          </div>
+        </div>
+        <div id="pole1ctrl">
+          <div class="sl-row">
+            <span class="sl-label">σ (rad/s)</span>
+            <input type="range" min="-2000" max="0" step="10" id="p1s" value="-100" oninput="update()">
+            <span class="sl-val" id="p1sL">−100</span>
+          </div>
+          <div class="sl-row">
+            <span class="sl-label">Ω (rad/s)</span>
+            <input type="range" min="0" max="2000" step="10" id="p1w" value="0" oninput="update()">
+            <span class="sl-val" id="p1wL">0</span>
+          </div>
+        </div>
+        <div id="pole2ctrl" style="display:none">
+          <div class="sl-row">
+            <span class="sl-label">σ (rad/s)</span>
+            <input type="range" min="-2000" max="0" step="10" id="p2s" value="-200" oninput="update()">
+            <span class="sl-val" id="p2sL">−200</span>
+          </div>
+          <div class="sl-row">
+            <span class="sl-label">Ω (rad/s)</span>
+            <input type="range" min="0" max="2000" step="10" id="p2w" value="100" oninput="update()">
+            <span class="sl-val" id="p2wL">100</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Zeros panel -->
+      <div class="pz-card">
+        <div class="pz-header">
+          <span class="pz-title" style="color:var(--zero)">○ Zeros</span>
+          <div class="pz-count">
+            <span style="font-size:11px;color:var(--text3);margin-right:2px">count:</span>
+            <button id="zn0" class="tog active" onclick="setZeroCount(0)">0</button>
+            <button id="zn1" class="tog" onclick="setZeroCount(1)">1 pair</button>
+            <button id="zn2" class="tog" onclick="setZeroCount(2)">2 pairs</button>
+          </div>
+        </div>
+        <div id="zero1ctrl" style="display:none">
+          <div class="sl-row">
+            <span class="sl-label">σ (rad/s)</span>
+            <input type="range" min="-2000" max="0" step="10" id="z1s" value="-500" oninput="update()">
+            <span class="sl-val" id="z1sL">−500</span>
+          </div>
+          <div class="sl-row">
+            <span class="sl-label">Ω (rad/s)</span>
+            <input type="range" min="0" max="2000" step="10" id="z1w" value="0" oninput="update()">
+            <span class="sl-val" id="z1wL">0</span>
+          </div>
+        </div>
+        <div id="zero2ctrl" style="display:none">
+          <div class="sl-row">
+            <span class="sl-label">σ (rad/s)</span>
+            <input type="range" min="-2000" max="0" step="10" id="z2s" value="-500" oninput="update()">
+            <span class="sl-val" id="z2sL">−500</span>
+          </div>
+          <div class="sl-row">
+            <span class="sl-label">Ω (rad/s)</span>
+            <input type="range" min="0" max="2000" step="10" id="z2w" value="500" oninput="update()">
+            <span class="sl-val" id="z2wL">500</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toggle card -->
+  <div class="card">
+    <div class="toggle-row">
+      <span class="tog-label">Frequency:</span>
+      <button id="togRad" class="tog active" onclick="setFreqUnit('rad')">rad/s</button>
+      <button id="togHz" class="tog" onclick="setFreqUnit('hz')">Hz</button>
+      <div class="sep"></div>
+      <span class="tog-label">Magnitude:</span>
+      <button id="togLin" class="tog" onclick="setDb(false)">Linear</button>
+      <button id="togDb" class="tog active" onclick="setDb(true)">dB</button>
+      <div class="sep"></div>
+      <span class="tog-label">Bode curve:</span>
+      <button id="togReal" class="tog active" onclick="setBodeMode('real')">Real</button>
+      <button id="togAsymp" class="tog" onclick="setBodeMode('asymp')">Asymptotic</button>
+      <button id="togBoth" class="tog" onclick="setBodeMode('both')">Both</button>
+    </div>
+  </div>
+
+  <!-- Plots -->
+  <div class="plots">
+    <!-- Left: s-plane -->
+    <div class="plot-box">
+      <div class="plot-title">s-plane</div>
+      <canvas id="splane" width="400" height="400"></canvas>
+    </div>
+    <!-- Right: Bode stack -->
+    <div class="bode-stack">
+      <div class="plot-box">
+        <div class="plot-title" id="magTitle">|H(jΩ)| — dB</div>
+        <canvas id="bodemag" width="400" height="190"></canvas>
+      </div>
+      <div class="plot-box">
+        <div class="plot-title">∠H(jΩ) — degrees</div>
+        <canvas id="bodephase" width="400" height="190"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Note box -->
+  <div id="noteBox" class="note-box"></div>
+
+  <!-- How to read -->
+  <div class="card" style="font-size:13px;color:var(--text2);line-height:1.7">
+    <div class="section-label">How to read this</div>
+    <p><strong>S-plane:</strong> The imaginary axis (jΩ) is the stability boundary. Poles in the left half-plane (σ &lt; 0) give stable filters. The natural frequency ωn = √(σ²+Ω²) sets the corner frequency in the Bode plot.</p>
+    <p style="margin-top:8px"><strong>Bode magnitude:</strong> Each pole contributes −20 dB/decade slope above its corner frequency; each zero adds +20 dB/decade. Complex conjugate pairs contribute ±40 dB/decade.</p>
+    <p style="margin-top:8px"><strong>Asymptotic approximation:</strong> The dashed curve shows the straight-line approximation — flat below the corner frequency, then sloped above. Real filters deviate near the corner by up to ±3 dB (poles) or ±3 dB (zeros).</p>
+  </div>
+</main>
+
+<footer>BME 309 · Northwestern University · Interactive tool generated with Claude</footer>
+
+<script>
+const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+const textCol  = isDark ? '#a0a09a' : '#5a5a56';
+const gridCol  = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+const unitCol  = isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.16)';
+const poleCol  = isDark ? '#F07050' : '#D85A30';
+const zeroCol  = isDark ? '#5BAFF5' : '#185FA5';
+const lineCol  = isDark ? '#8880EE' : '#534AB7';
+const asympCol = isDark ? 'rgba(255,200,80,0.7)' : 'rgba(180,120,0,0.65)';
+
+let poleCount = 1, zeroCount = 0;
+let useDb = true, freqUnit = 'rad', bodeMode = 'real';
+
+function sv(id) { const el = document.getElementById(id); return el ? parseFloat(el.value) : 0; }
+function si(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
+
+function getPoles() {
+  const list = [];
+  if (poleCount >= 1) {
+    const s = sv('p1s'), w = sv('p1w');
+    if (w === 0) list.push([s, 0]); else list.push([s, w], [s, -w]);
+  }
+  if (poleCount >= 2) {
+    const s = sv('p2s'), w = sv('p2w');
+    if (w === 0) list.push([s, 0]); else list.push([s, w], [s, -w]);
+  }
+  return list; // each entry: [sigma, omega_imag]
+}
+function getZeros() {
+  const list = [];
+  if (zeroCount >= 1) {
+    const s = sv('z1s'), w = sv('z1w');
+    if (w === 0) list.push([s, 0]); else list.push([s, w], [s, -w]);
+  }
+  if (zeroCount >= 2) {
+    const s = sv('z2s'), w = sv('z2w');
+    if (w === 0) list.push([s, 0]); else list.push([s, w], [s, -w]);
+  }
+  return list;
+}
+
+const N_FREQ = 500;
+const OMEGA_MIN = 0.1, OMEGA_MAX = 10000; // rad/s
+
+function freqAxis() {
+  const arr = [];
+  const logMin = Math.log10(OMEGA_MIN), logMax = Math.log10(OMEGA_MAX);
+  for (let i = 0; i < N_FREQ; i++) {
+    arr.push(Math.pow(10, logMin + (i/(N_FREQ-1))*(logMax-logMin)));
+  }
+  return arr;
+}
+
+function computeExact(omegas) {
+  const poles = getPoles(), zeros = getZeros();
+  const mags = [], phases = [];
+  for (const om of omegas) {
+    let magNum = 1, phNum = 0, magDen = 1, phDen = 0;
+    for (const [sig, omZ] of zeros) {
+      const a = -sig, b = om - omZ;
+      const d = Math.sqrt(a*a + b*b);
+      magNum *= (d < 1e-12 ? 1e-12 : d);
+      phNum  += Math.atan2(b, a);
+    }
+    for (const [sig, omP] of poles) {
+      const a = -sig, b = om - omP;
+      const d = Math.sqrt(a*a + b*b);
+      if (d < 1e-10) { magDen = 1e-10; } else { magDen *= d; phDen += Math.atan2(b, a); }
+    }
+    mags.push(magNum / magDen);
+    phases.push(phNum - phDen);
+  }
+  // Unwrap phase
+  for (let i = 1; i < phases.length; i++) {
+    let diff = phases[i] - phases[i-1];
+    while (diff >  Math.PI) diff -= 2*Math.PI;
+    while (diff < -Math.PI) diff += 2*Math.PI;
+    phases[i] = phases[i-1] + diff;
+  }
+  return { mags, phases };
+}
+
+function computeAsymp(omegas) {
+  const poles = getPoles(), zeros = getZeros();
+
+  // Collect unique corner frequencies (deduplicate conjugate pairs)
+  const corners = [];
+  const seenP = new Set();
+  for (const [sig, omP] of poles) {
+    const key = `${sig},${Math.abs(omP)}`;
+    if (seenP.has(key)) continue;
+    seenP.add(key);
+    const wc = Math.sqrt(sig*sig + omP*omP);
+    if (wc < 1e-6) continue; // skip poles exactly at origin
+    const isComplex = Math.abs(omP) > 1e-6;
+    corners.push({ wc, slopedB: isComplex ? -40 : -20, phShiftDeg: isComplex ? -180 : -90 });
+  }
+  const seenZ = new Set();
+  for (const [sig, omZ] of zeros) {
+    const key = `${sig},${Math.abs(omZ)}`;
+    if (seenZ.has(key)) continue;
+    seenZ.add(key);
+    const wc = Math.sqrt(sig*sig + omZ*omZ);
+    if (wc < 1e-6) continue; // skip zeros at origin (handle separately if needed)
+    const isComplex = Math.abs(omZ) > 1e-6;
+    corners.push({ wc, slopedB: isComplex ? +40 : +20, phShiftDeg: isComplex ? +180 : +90 });
+  }
+
+  // Count zeros exactly at origin (s=0 → σ=0, Ω=0)
+  const zerosAtOrigin = zeros.filter(([s,o]) => Math.abs(s) < 1e-6 && Math.abs(o) < 1e-6).length;
+
+  const magsdB = [], phases = [];
+  for (const om of omegas) {
+    // Start with contribution from zeros at origin: +20dB/dec each, always rising
+    let dB = zerosAtOrigin * 20 * Math.log10(om);
+    let phDeg = zerosAtOrigin * 90;
+
+    for (const { wc, slopedB, phShiftDeg } of corners) {
+      // Magnitude: flat below wc, slope above
+      if (om > wc) dB += slopedB * Math.log10(om / wc);
+      // Phase: linear in log10 from wc/10 to wc*10
+      const logR = Math.log10(om / wc);
+      if (logR >= 1)       phDeg += phShiftDeg;
+      else if (logR > -1)  phDeg += phShiftDeg * (logR + 1) / 2;
+      // else logR <= -1: no contribution
+    }
+    magsdB.push(dB);
+    phases.push(phDeg * Math.PI / 180); // store in radians for consistent API
+  }
+  return { magsdB, phases };
+}
+
+// drawAxes and drawCurve helpers (copied pattern from zplane_explorer_3.html)
+function drawAxes(ctx, W, H, pad, xLabels, yMin, yMax, yTicks) {
+  const gW = W-pad.l-pad.r, gH = H-pad.t-pad.b;
+  ctx.strokeStyle = gridCol; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= yTicks; i++) {
+    const y = pad.t + i*gH/yTicks;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+gW,y); ctx.stroke();
+    const val = yMax - i*(yMax-yMin)/yTicks;
+    ctx.fillStyle = textCol; ctx.font = '10px system-ui,sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(val % 1 === 0 ? val.toFixed(0) : val.toFixed(1), pad.l-4, y+3);
+  }
+  ctx.textAlign = 'center';
+  xLabels.forEach((lbl, i) => {
+    const x = pad.l + (i/(xLabels.length-1))*(W-pad.l-pad.r);
+    ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,pad.t+gH); ctx.stroke();
+    ctx.fillStyle = textCol; ctx.font = '10px system-ui,sans-serif';
+    ctx.fillText(lbl, x, pad.t+gH+13);
+  });
+  ctx.strokeStyle = isDark?'rgba(255,255,255,0.18)':'rgba(0,0,0,0.18)'; ctx.lineWidth=1;
+  ctx.strokeRect(pad.l,pad.t,W-pad.l-pad.r,gH);
+  ctx.textAlign = 'left';
+}
+
+function drawSPlane() {
+  const c = document.getElementById('splane');
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Coordinate mapping: sigma → x, omega_imag → y
+  const sigMin = -2200, sigMax = 200;
+  const omMin  = -2200, omMax  = 2200;
+  const toX = sig => (sig - sigMin) / (sigMax - sigMin) * W;
+  const toY = om  => H - (om - omMin) / (omMax - omMin) * H;
+
+  // Stable region shading (left of imaginary axis)
+  ctx.fillStyle = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.025)';
+  ctx.fillRect(0, 0, toX(0), H);
+
+  // Real axis
+  ctx.strokeStyle = gridCol; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(0, toY(0)); ctx.lineTo(W, toY(0)); ctx.stroke();
+
+  // Imaginary axis (stability boundary)
+  ctx.strokeStyle = unitCol; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(toX(0), 0); ctx.lineTo(toX(0), H); ctx.stroke();
+
+  // Axis labels
+  ctx.fillStyle = textCol; ctx.font = '10px system-ui,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('jΩ', toX(0) + 12, 12);
+  ctx.fillText('stable', toX(-1100), H - 6);
+  ctx.textAlign = 'left';
+  ctx.fillText('σ', W - 14, toY(0) - 4);
+
+  // Draw poles (×)
+  getPoles().forEach(([sig, om]) => {
+    const x = toX(sig), y = toY(om);
+    ctx.strokeStyle = poleCol; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(x-7,y-7); ctx.lineTo(x+7,y+7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x+7,y-7); ctx.lineTo(x-7,y+7); ctx.stroke();
+  });
+
+  // Draw zeros (○)
+  getZeros().forEach(([sig, om]) => {
+    const x = toX(sig), y = toY(om);
+    ctx.strokeStyle = zeroCol; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.arc(x, y, 7, 0, 2*Math.PI); ctx.stroke();
+  });
+
+  // Legend
+  ctx.font = '10px system-ui,sans-serif'; ctx.textAlign = 'left';
+  ctx.fillStyle = poleCol; ctx.fillText('×  pole', 8, H-14);
+  ctx.fillStyle = zeroCol; ctx.fillText('○  zero', 8, H-4);
+}
+
+function drawBodeMag(omegas, exact, asymp) {
+  const c = document.getElementById('bodemag');
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  ctx.clearRect(0, 0, W, H);
+  const pad = { l:44, r:10, t:10, b:26 };
+  const gW = W-pad.l-pad.r, gH = H-pad.t-pad.b;
+
+  // Build data arrays
+  let realData, asympData, yMin, yMax;
+  if (useDb) {
+    realData  = exact.mags.map(m => m > 1e-12 ? 20*Math.log10(m) : -120);
+    asympData = asymp.magsdB;
+    const allFin = [
+      ...(bodeMode !== 'asymp' ? realData  : []),
+      ...(bodeMode !== 'real'  ? asympData : [])
+    ].filter(isFinite);
+    if (allFin.length === 0) { yMin = -60; yMax = 40; }
+    else {
+      const rawMax = Math.max(...allFin), rawMin = Math.min(...allFin);
+      yMax = Math.ceil(rawMax/20)*20  || 20;
+      yMin = Math.max(Math.floor(rawMin/20)*20, yMax - 120);
+    }
+  } else {
+    realData  = exact.mags;
+    asympData = asymp.magsdB.map(db => Math.pow(10, db/20));
+    const fin = realData.filter(isFinite);
+    yMax = fin.length ? Math.ceil(Math.min(Math.max(...fin), 20)*10)/10 : 1;
+    yMin = 0;
+  }
+
+  // X-axis labels (log scale, 6 decades)
+  const xLabels = freqUnit === 'rad'
+    ? ['0.1','1','10','100','1k','10k']
+    : ['0.016','0.16','1.6','16','159','1592'];
+  drawAxes(ctx, W, H, pad, xLabels, yMin, yMax, 4);
+
+  // Map omega index → x pixel (log scale)
+  const omToX = i => pad.l + (Math.log10(omegas[i]/OMEGA_MIN) / Math.log10(OMEGA_MAX/OMEGA_MIN)) * gW;
+
+  // Plot line helper
+  function plotLine(data, col, dash=[]) {
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash(dash);
+    ctx.beginPath(); let started = false;
+    data.forEach((v, i) => {
+      const x = omToX(i);
+      const clamped = Math.max(yMin, Math.min(yMax, v));
+      const y = pad.t + gH - (clamped - yMin)/(yMax - yMin)*gH;
+      if (!isFinite(v) || !started) { ctx.moveTo(x, y); started = true; }
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  if (bodeMode === 'real'  || bodeMode === 'both') plotLine(realData,  lineCol);
+  if (bodeMode === 'asymp' || bodeMode === 'both') plotLine(asympData, asympCol, [5,4]);
+
+  // Corner frequency markers (dashed vertical lines)
+  const allPZ = [...getPoles(), ...getZeros()];
+  const seen = new Set();
+  allPZ.forEach(([sig, om]) => {
+    const wc = Math.sqrt(sig*sig + om*om);
+    const key = wc.toFixed(2);
+    if (wc < OMEGA_MIN || wc > OMEGA_MAX || seen.has(key)) return;
+    seen.add(key);
+    const frac = Math.log10(wc/OMEGA_MIN) / Math.log10(OMEGA_MAX/OMEGA_MIN);
+    const x = pad.l + frac * gW;
+    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)';
+    ctx.lineWidth = 0.8; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t+gH); ctx.stroke();
+    ctx.setLineDash([]);
+  });
+}
+
+function drawBodePhase(omegas, exact, asymp) {
+  const c = document.getElementById('bodephase');
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  ctx.clearRect(0, 0, W, H);
+  const pad = { l:44, r:10, t:10, b:26 };
+  const gW = W-pad.l-pad.r, gH = H-pad.t-pad.b;
+
+  const toDeg = arr => arr.map(r => r * 180 / Math.PI);
+  const realDeg  = toDeg(exact.phases);
+  const asympDeg = toDeg(asymp.phases);
+
+  // y-axis range: round to nearest 45°, add padding
+  const allDeg = [
+    ...(bodeMode !== 'asymp' ? realDeg  : []),
+    ...(bodeMode !== 'real'  ? asympDeg : [])
+  ].filter(isFinite);
+  let yMin, yMax;
+  if (allDeg.length === 0) { yMin = -180; yMax = 0; }
+  else {
+    yMin = Math.floor(Math.min(...allDeg)/45)*45 - 45;
+    yMax = Math.ceil( Math.max(...allDeg)/45)*45 + 45;
+  }
+
+  const xLabels = freqUnit === 'rad'
+    ? ['0.1','1','10','100','1k','10k']
+    : ['0.016','0.16','1.6','16','159','1592'];
+  drawAxes(ctx, W, H, pad, xLabels, yMin, yMax, 4);
+
+  // Override y-axis labels with degree symbols
+  ctx.fillStyle = textCol; ctx.font = '10px system-ui,sans-serif'; ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const v = yMax - i*(yMax-yMin)/4;
+    const y = pad.t + i*gH/4;
+    ctx.fillText(v.toFixed(0)+'°', pad.l-4, y+3);
+  }
+  ctx.textAlign = 'left';
+
+  const omToX = i => pad.l + (Math.log10(omegas[i]/OMEGA_MIN) / Math.log10(OMEGA_MAX/OMEGA_MIN)) * gW;
+
+  function plotLine(data, col, dash=[]) {
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash(dash);
+    ctx.beginPath(); let started = false;
+    data.forEach((v, i) => {
+      const x = omToX(i);
+      const clamped = Math.max(yMin, Math.min(yMax, v));
+      const y = pad.t + gH - (clamped - yMin)/(yMax - yMin)*gH;
+      if (!isFinite(v) || !started) { ctx.moveTo(x, y); started = true; }
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  if (bodeMode === 'real'  || bodeMode === 'both') plotLine(realDeg,  lineCol);
+  if (bodeMode === 'asymp' || bodeMode === 'both') plotLine(asympDeg, asympCol, [5,4]);
+}
+
+let dragging = null;
+
+function sPlaneCoords(canvas, evt) {
+  const rect = canvas.getBoundingClientRect();
+  const px = (evt.clientX - rect.left) * (canvas.width  / rect.width);
+  const py = (evt.clientY - rect.top)  * (canvas.height / rect.height);
+  const sigMin = -2200, sigMax = 200, omMin = -2200, omMax = 2200;
+  const sig = sigMin + (px / canvas.width)  * (sigMax - sigMin);
+  const om  = omMin  + ((canvas.height - py) / canvas.height) * (omMax - omMin);
+  // Clamp to slider ranges
+  return {
+    sig: Math.max(-2000, Math.min(0, Math.round(sig/10)*10)),
+    om:  Math.max(0, Math.min(2000, Math.round(om/10)*10))
+  };
+}
+
+function initDrag() {
+  const c = document.getElementById('splane');
+  const sigMin = -2200, sigMax = 200, omMin = -2200, omMax = 2200;
+
+  function toCanvasX(sig) { return (sig - sigMin) / (sigMax - sigMin) * c.width; }
+  function toCanvasY(om)  { return c.height - (om - omMin) / (omMax - omMin) * c.height; }
+
+  function nearestHandle(sig, om) {
+    const THRESH = 15;
+    const candidates = [];
+    if (poleCount >= 1) candidates.push({ id:'p1s', wid:'p1w', sig:sv('p1s'), om:sv('p1w') });
+    if (poleCount >= 2) candidates.push({ id:'p2s', wid:'p2w', sig:sv('p2s'), om:sv('p2w') });
+    if (zeroCount >= 1) candidates.push({ id:'z1s', wid:'z1w', sig:sv('z1s'), om:sv('z1w') });
+    if (zeroCount >= 2) candidates.push({ id:'z2s', wid:'z2w', sig:sv('z2s'), om:sv('z2w') });
+
+    let best = null, bestDist = Infinity;
+    for (const h of candidates) {
+      // Check both upper (+om) and lower (-om, mirrored conjugate) positions
+      for (const omSign of [1, -1]) {
+        const cx = toCanvasX(h.sig), cy = toCanvasY(h.om * omSign);
+        const dist = Math.hypot(toCanvasX(sig) - cx, toCanvasY(om) - cy);
+        if (dist < THRESH && dist < bestDist) { bestDist = dist; best = h; }
+      }
+    }
+    return best;
+  }
+
+  c.addEventListener('mousedown', e => {
+    const { sig, om } = sPlaneCoords(c, e);
+    dragging = nearestHandle(sig, om);
+  });
+  c.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const { sig, om } = sPlaneCoords(c, e);
+    si(dragging.id, sig);
+    si(dragging.wid, om);
+    update();
+  });
+  c.addEventListener('mouseup',    () => { dragging = null; });
+  c.addEventListener('mouseleave', () => { dragging = null; });
+
+  // Touch support
+  c.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const { sig, om } = sPlaneCoords(c, e.touches[0]);
+    dragging = nearestHandle(sig, om);
+  }, { passive: false });
+  c.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (!dragging) return;
+    const { sig, om } = sPlaneCoords(c, e.touches[0]);
+    si(dragging.id, sig);
+    si(dragging.wid, om);
+    update();
+  }, { passive: false });
+  c.addEventListener('touchend', () => { dragging = null; });
+}
+
+function setPoleCount(n) {
+  poleCount = n;
+  ['pn0','pn1','pn2'].forEach((id,i) => document.getElementById(id).classList.toggle('active', i===n));
+  document.getElementById('pole1ctrl').style.display = n>=1 ? '' : 'none';
+  document.getElementById('pole2ctrl').style.display = n>=2 ? '' : 'none';
+  update();
+}
+function setZeroCount(n) {
+  zeroCount = n;
+  ['zn0','zn1','zn2'].forEach((id,i) => document.getElementById(id).classList.toggle('active', i===n));
+  document.getElementById('zero1ctrl').style.display = n>=1 ? '' : 'none';
+  document.getElementById('zero2ctrl').style.display = n>=2 ? '' : 'none';
+  update();
+}
+function setFreqUnit(u) {
+  freqUnit = u;
+  document.getElementById('togRad').classList.toggle('active', u==='rad');
+  document.getElementById('togHz').classList.toggle('active',  u==='hz');
+  update();
+}
+function setDb(v) {
+  useDb = v;
+  document.getElementById('togLin').classList.toggle('active', !v);
+  document.getElementById('togDb').classList.toggle('active',   v);
+  document.getElementById('magTitle').innerHTML = v ? '|H(jΩ)| — dB' : '|H(jΩ)| — linear';
+  update();
+}
+function setBodeMode(m) {
+  bodeMode = m;
+  ['togReal','togAsymp','togBoth'].forEach((id,i) =>
+    document.getElementById(id).classList.toggle('active', ['real','asymp','both'][i]===m));
+  update();
+}
+function setPreset(t) {
+  if (t === 'butter1lp') {
+    setPoleCount(1); setZeroCount(0);
+    si('p1s',-100); si('p1w',0);
+  } else if (t === 'butter2lp') {
+    setPoleCount(1); setZeroCount(0);
+    si('p1s',-71); si('p1w',71);
+  } else if (t === 'butter2hp') {
+    setPoleCount(1); setZeroCount(1);
+    si('p1s',-71);  si('p1w',71);
+    si('z1s',0);    si('z1w',0);
+  } else if (t === 'ecgbp') {
+    setPoleCount(1); setZeroCount(1);
+    si('p1s',-3);   si('p1w',628);
+    si('z1s',0);    si('z1w',0);
+  } else if (t === 'notch60') {
+    setPoleCount(1); setZeroCount(1);
+    si('p1s',-38);  si('p1w',377);
+    si('z1s',0);    si('z1w',377);
+  } else {
+    // reset
+    setPoleCount(1); setZeroCount(0);
+    si('p1s',-100); si('p1w',0);
+  }
+  update();
+}
+
+function classify() {
+  const poles = getPoles(), zeros = getZeros();
+  if (!poleCount && !zeroCount) return 'No poles or zeros — H(s) = 1, flat unity response at all frequencies.';
+  const bits = [];
+
+  // Unique pairs only
+  const seenP = new Set();
+  for (const [sig, om] of poles) {
+    const key = `${sig},${Math.abs(om)}`;
+    if (seenP.has(key)) continue;
+    seenP.add(key);
+    const wn = Math.sqrt(sig*sig + om*om);
+    const stable = sig < 0 ? 'stable' : sig === 0 ? 'marginally stable' : 'UNSTABLE';
+    const wnStr = freqUnit === 'hz' ? (wn/(2*Math.PI)).toFixed(2)+' Hz' : wn.toFixed(1)+' rad/s';
+    const type = Math.abs(om) < 1e-6 ? `real pole at σ = ${sig}` : `complex pair at σ=${sig}, Ω=±${Math.abs(om)}`;
+    bits.push(`<strong>Pole:</strong> ${type} — ωn = ${wnStr} — <em>${stable}</em>`);
+  }
+
+  const seenZ = new Set();
+  for (const [sig, om] of zeros) {
+    const key = `${sig},${Math.abs(om)}`;
+    if (seenZ.has(key)) continue;
+    seenZ.add(key);
+    const wn = Math.sqrt(sig*sig + om*om);
+    const wnStr = freqUnit === 'hz' ? (wn/(2*Math.PI)).toFixed(2)+' Hz' : wn.toFixed(1)+' rad/s';
+    const type = Math.abs(om) < 1e-6 ? `real zero at σ = ${sig}` : `complex pair at σ=${sig}, Ω=±${Math.abs(om)}`;
+    bits.push(`<strong>Zero:</strong> ${type} — corner freq ≈ ${wnStr}`);
+  }
+
+  return bits.join('<br>');
+}
+
+function update() {
+  [['p1s',''],['p1w',''],['p2s',''],['p2w',''],
+   ['z1s',''],['z1w',''],['z2s',''],['z2w','']].forEach(([id]) => {
+    const el = document.getElementById(id), lbl = document.getElementById(id+'L');
+    if (el && lbl) lbl.textContent = parseFloat(el.value).toFixed(0);
+  });
+  const omegas = freqAxis();
+  const exact  = computeExact(omegas);
+  const asymp  = computeAsymp(omegas);
+  drawSPlane();
+  drawBodeMag(omegas, exact, asymp);
+  drawBodePhase(omegas, exact, asymp);
+  document.getElementById('noteBox').innerHTML = classify();
+}
+
+update();
+initDrag();
+</script>
+</body>
+</html>
