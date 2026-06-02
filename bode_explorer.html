@@ -311,7 +311,7 @@
   <!-- How to read -->
   <div class="card" style="font-size:13px;color:var(--text2);line-height:1.7">
     <div class="section-label">How to read this</div>
-    <p><strong>S-plane:</strong> The imaginary axis (jΩ) is the stability boundary. Poles in the left half-plane (σ &lt; 0) give stable filters. The natural frequency ωn = √(σ²+Ω²) sets the corner frequency in the Bode plot.</p>
+    <p><strong>S-plane:</strong> The imaginary axis (jω) is the stability boundary. Poles in the left half-plane (σ &lt; 0) give stable filters. The natural frequency ωn = √(σ²+ω²) sets the corner frequency in the Bode plot.</p>
     <p style="margin-top:8px"><strong>Bode magnitude:</strong> Each pole contributes −20 dB/decade slope above its corner frequency; each zero adds +20 dB/decade. Complex conjugate pairs contribute ±40 dB/decade.</p>
     <p style="margin-top:8px"><strong>Asymptotic approximation:</strong> The dashed curve shows the straight-line approximation — flat below the corner frequency, then sloped above. Real filters deviate near the corner by up to ±3 dB (poles) or ±3 dB (zeros).</p>
   </div>
@@ -320,6 +320,10 @@
 <footer>BME 309 · Northwestern University · Interactive tool generated with Claude</footer>
 
 <script>
+// S-plane coordinate range — single source of truth used by drawSPlane, sPlaneCoords, initDrag
+const SP_SIG_MIN = -2200, SP_SIG_MAX = 600;
+const SP_OM_MIN  = -2200, SP_OM_MAX  = 2200;
+
 const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
 const textCol  = isDark ? '#a0a09a' : '#5a5a56';
 const gridCol  = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
@@ -483,10 +487,8 @@ function drawSPlane() {
   ctx.clearRect(0, 0, W, H);
 
   // Coordinate mapping: sigma → x, omega_imag → y
-  const sigMin = -2200, sigMax = 600;
-  const omMin  = -2200, omMax  = 2200;
-  const toX = sig => (sig - sigMin) / (sigMax - sigMin) * W;
-  const toY = om  => H - (om - omMin) / (omMax - omMin) * H;
+  const toX = sig => (sig - SP_SIG_MIN) / (SP_SIG_MAX - SP_SIG_MIN) * W;
+  const toY = om  => H - (om - SP_OM_MIN) / (SP_OM_MAX - SP_OM_MIN) * H;
 
   // Stable region shading (left of imaginary axis)
   ctx.fillStyle = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.025)';
@@ -674,9 +676,8 @@ function sPlaneCoords(canvas, evt) {
   const rect = canvas.getBoundingClientRect();
   const px = (evt.clientX - rect.left) * (canvas.width  / rect.width);
   const py = (evt.clientY - rect.top)  * (canvas.height / rect.height);
-  const sigMin = -2200, sigMax = 200, omMin = -2200, omMax = 2200;
-  const sig = sigMin + (px / canvas.width)  * (sigMax - sigMin);
-  const om  = omMin  + ((canvas.height - py) / canvas.height) * (omMax - omMin);
+  const sig = SP_SIG_MIN + (px / canvas.width)  * (SP_SIG_MAX - SP_SIG_MIN);
+  const om  = SP_OM_MIN  + ((canvas.height - py) / canvas.height) * (SP_OM_MAX - SP_OM_MIN);
   // Clamp to slider ranges
   return {
     sig: Math.max(-2000, Math.min(0, Math.round(sig/10)*10)),
@@ -686,10 +687,9 @@ function sPlaneCoords(canvas, evt) {
 
 function initDrag() {
   const c = document.getElementById('splane');
-  const sigMin = -2200, sigMax = 200, omMin = -2200, omMax = 2200;
 
-  function toCanvasX(sig) { return (sig - sigMin) / (sigMax - sigMin) * c.width; }
-  function toCanvasY(om)  { return c.height - (om - omMin) / (omMax - omMin) * c.height; }
+  function toCanvasX(sig) { return (sig - SP_SIG_MIN) / (SP_SIG_MAX - SP_SIG_MIN) * c.width; }
+  function toCanvasY(om)  { return c.height - (om - SP_OM_MIN) / (SP_OM_MAX - SP_OM_MIN) * c.height; }
 
   function nearestHandle(sig, om) {
     const THRESH = 15;
