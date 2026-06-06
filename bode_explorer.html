@@ -627,34 +627,37 @@ function drawBodePhase(omegas, exact, asymp) {
   const realDeg  = toDeg(exact.phases);
   const asympDeg = toDeg(asymp.phases);
 
-  // y-axis range: round to nearest 45°, add padding
+  // y-axis: snap to 90° grid, ticks always at multiples of 90°
   const allDeg = [
     ...(bodeMode !== 'asymp' ? realDeg  : []),
     ...(bodeMode !== 'real'  ? asympDeg : [])
   ].filter(isFinite);
-  let yMin, yMax;
-  if (allDeg.length === 0) { yMin = -180; yMax = 0; }
-  else {
-    yMin = Math.floor(Math.min(...allDeg)/45)*45 - 45;
-    yMax = Math.ceil( Math.max(...allDeg)/45)*45 + 45;
-  }
+  const dataMin = allDeg.length ? Math.min(...allDeg) : -180;
+  const dataMax = allDeg.length ? Math.max(...allDeg) : 0;
+  const yMin = Math.floor(dataMin / 90) * 90;
+  const yMax = Math.ceil(dataMax  / 90) * 90;
+  // Ensure at least one 90° step
+  const yRange = yMax - yMin || 180;
+  const tickStep = 90;
+  const ticks = [];
+  for (let v = yMin; v <= yMax; v += tickStep) ticks.push(v);
 
   const xLabels = freqUnit === 'rad'
     ? ['0.1','1','10','100','1k','10k']
     : ['0.016','0.16','1.6','16','159','1592'];
-  drawAxes(ctx, W, H, pad, xLabels, yMin, yMax, 4, true);
+  // Draw grid lines at each 90° tick (skip drawAxes y-labels, draw manually)
+  drawAxes(ctx, W, H, pad, xLabels, yMin, yMax, ticks.length - 1, true);
   // Frequency axis label
   ctx.fillStyle = textCol; ctx.font = '10px system-ui,sans-serif'; ctx.textAlign = 'center';
   ctx.fillText(freqUnit === 'rad' ? 'Frequency (rad/s)' : 'Frequency (Hz)', pad.l + gW/2, H - 2);
   ctx.textAlign = 'left';
 
-  // Draw y-axis labels with degree symbols
+  // Draw y-axis labels at exact multiples of 90°
   ctx.fillStyle = textCol; ctx.font = '10px system-ui,sans-serif'; ctx.textAlign = 'right';
-  for (let i = 0; i <= 4; i++) {
-    const v = yMax - i*(yMax-yMin)/4;
-    const y = pad.t + i*gH/4;
-    ctx.fillText(v.toFixed(0)+'°', pad.l-4, y+3);
-  }
+  ticks.forEach(v => {
+    const y = pad.t + gH - (v - yMin) / yRange * gH;
+    ctx.fillText(v + '°', pad.l - 4, y + 3);
+  });
   ctx.textAlign = 'left';
 
   const omToX = i => pad.l + (Math.log10(omegas[i]/OMEGA_MIN) / Math.log10(OMEGA_MAX/OMEGA_MIN)) * gW;
