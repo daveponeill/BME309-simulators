@@ -455,7 +455,10 @@ function computeAsymp(omegas) {
     magsdB.push(dB);
     phases.push(phDeg * Math.PI / 180); // store in radians for consistent API
   }
-  return { magsdB, phases };
+  // Normalize so passband peak = 0 dB, matching the real computation's convention
+  const maxdB = Math.max(...magsdB);
+  const normedMagsdB = isFinite(maxdB) ? magsdB.map(v => v - maxdB) : magsdB;
+  return { magsdB: normedMagsdB, phases };
 }
 
 // drawAxes and drawCurve helpers (copied pattern from zplane_explorer_3.html)
