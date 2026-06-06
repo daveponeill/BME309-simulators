@@ -295,11 +295,11 @@
         </div>
       </div>
       <div class="plot-box">
-        <div class="plot-title" id="magTitle">|H(jΩ)| — dB</div>
+        <div class="plot-title" id="magTitle">|H(jω)| — dB</div>
         <canvas id="bodemag" width="400" height="190"></canvas>
       </div>
       <div class="plot-box">
-        <div class="plot-title">∠H(jΩ) — degrees</div>
+        <div class="plot-title">∠H(jω) — degrees</div>
         <canvas id="bodephase" width="400" height="190"></canvas>
       </div>
     </div>
@@ -321,8 +321,8 @@
 
 <script>
 // S-plane coordinate range — single source of truth used by drawSPlane, sPlaneCoords, initDrag
-const SP_SIG_MIN = -2200, SP_SIG_MAX = 600;
-const SP_OM_MIN  = -2200, SP_OM_MAX  = 2200;
+const SP_SIG_MIN = -1400, SP_SIG_MAX = 750;
+const SP_OM_MIN  = -1400, SP_OM_MAX  = 1400;
 
 const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
 const textCol  = isDark ? '#a0a09a' : '#5a5a56';
@@ -402,7 +402,10 @@ function computeExact(omegas) {
     while (diff < -Math.PI) diff += 2*Math.PI;
     phases[i] = phases[i-1] + diff;
   }
-  return { mags, phases };
+  // Normalize so passband peak = 1 (0 dB), making real and asymptotic share the same reference
+  const maxMag = Math.max(...mags.filter(isFinite));
+  const normMags = maxMag > 1e-12 ? mags.map(m => m / maxMag) : mags;
+  return { mags: normMags, phases };
 }
 
 function computeAsymp(omegas) {
@@ -431,7 +434,7 @@ function computeAsymp(omegas) {
     corners.push({ wc, slopedB: isComplex ? +40 : +20, phShiftDeg: isComplex ? +180 : +90 });
   }
 
-  // Count zeros exactly at origin (s=0 → σ=0, Ω=0)
+  // Count zeros exactly at origin (s=0 → σ=0, ω=0)
   const zerosAtOrigin = zeros.filter(([s,o]) => Math.abs(s) < 1e-6 && Math.abs(o) < 1e-6).length;
 
   const magsdB = [], phases = [];
@@ -505,7 +508,7 @@ function drawSPlane() {
   // Axis labels
   ctx.fillStyle = textCol; ctx.font = '10px system-ui,sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('jΩ', toX(0) + 12, 12);
+  ctx.fillText('jω', toX(0) + 12, 12);
   ctx.fillText('stable', toX(-1100), H - 6);
   ctx.textAlign = 'left';
   ctx.fillText('σ', W - 14, toY(0) - 4);
@@ -766,7 +769,7 @@ function setDb(v) {
   useDb = v;
   document.getElementById('togLin').classList.toggle('active', !v);
   document.getElementById('togDb').classList.toggle('active',   v);
-  document.getElementById('magTitle').innerHTML = v ? '|H(jΩ)| — dB' : '|H(jΩ)| — linear';
+  document.getElementById('magTitle').innerHTML = v ? '|H(jω)| — dB' : '|H(jω)| — linear';
   update();
 }
 function setBodeMode(m) {
@@ -783,9 +786,10 @@ function setPreset(t) {
     setPoleCount(1); setZeroCount(0);
     si('p1s',-71); si('p1w',71);
   } else if (t === 'butter2hp') {
-    setPoleCount(1); setZeroCount(1);
+    setPoleCount(1); setZeroCount(2);   // need s² → 2 zeros at origin
     si('p1s',-71);  si('p1w',71);
     si('z1s',0);    si('z1w',0);
+    si('z2s',0);    si('z2w',0);
   } else if (t === 'ecgbp') {
     setPoleCount(1); setZeroCount(1);
     si('p1s',-3);   si('p1w',628);
@@ -816,7 +820,7 @@ function classify() {
     const wn = Math.sqrt(sig*sig + om*om);
     const stable = sig < 0 ? 'stable' : sig === 0 ? 'marginally stable' : 'UNSTABLE';
     const wnStr = freqUnit === 'hz' ? (wn/(2*Math.PI)).toFixed(2)+' Hz' : wn.toFixed(1)+' rad/s';
-    const type = Math.abs(om) < 1e-6 ? `real pole at σ = ${sig}` : `complex pair at σ=${sig}, Ω=±${Math.abs(om)}`;
+    const type = Math.abs(om) < 1e-6 ? `real pole at σ = ${sig}` : `complex pair at σ=${sig}, ω=±${Math.abs(om)}`;
     bits.push(`<strong>Pole:</strong> ${type} — ωn = ${wnStr} — <em>${stable}</em>`);
   }
 
@@ -827,7 +831,7 @@ function classify() {
     seenZ.add(key);
     const wn = Math.sqrt(sig*sig + om*om);
     const wnStr = freqUnit === 'hz' ? (wn/(2*Math.PI)).toFixed(2)+' Hz' : wn.toFixed(1)+' rad/s';
-    const type = Math.abs(om) < 1e-6 ? `real zero at σ = ${sig}` : `complex pair at σ=${sig}, Ω=±${Math.abs(om)}`;
+    const type = Math.abs(om) < 1e-6 ? `real zero at σ = ${sig}` : `complex pair at σ=${sig}, ω=±${Math.abs(om)}`;
     bits.push(`<strong>Zero:</strong> ${type} — corner freq ≈ ${wnStr}`);
   }
 
